@@ -1,0 +1,102 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <SoftwareSerial.h>
+#include <MeMegaPi.h>
+
+MeUltrasonicSensor ultrasonic_7(7);
+double angle_rad = PI/180.0;
+double angle_deg = 180.0/PI;
+MeEncoderOnBoard Encoder_1(SLOT1);
+MeEncoderOnBoard Encoder_2(SLOT2);
+MeEncoderOnBoard Encoder_3(SLOT3);
+MeEncoderOnBoard Encoder_4(SLOT4);
+
+float proportionalGain = 0; //initialising all variables to be used
+float setpoint = 0;
+float DerivationGain = 0;
+float error1 = 0;
+float error2 = 0;
+float derivative = 0;
+float IntegralGain = 0;
+float integral = 0;
+
+void isr_process_encoder1(void){
+ if(digitalRead(Encoder_1.getPortB()) == 0){
+ Encoder_1.pulsePosMinus();
+ }else{
+ Encoder_1.pulsePosPlus();
+ }
+}
+
+void isr_process_encoder2(void){
+ if(digitalRead(Encoder_2.getPortB()) == 0){
+ Encoder_2.pulsePosMinus();
+ }else{
+ Encoder_2.pulsePosPlus();
+ }
+}
+
+void isr_process_encoder3(void){
+ if(digitalRead(Encoder_3.getPortB()) == 0){
+ Encoder_3.pulsePosMinus();
+ }else{
+ Encoder_3.pulsePosPlus();
+ }
+}
+
+void isr_process_encoder4(void){
+ if(digitalRead(Encoder_4.getPortB()) == 0){
+ Encoder_4.pulsePosMinus();
+ }else{
+ Encoder_4.pulsePosPlus();
+ }
+}
+
+void _delay(float seconds) {
+ if(seconds < 0.0){
+ seconds = 0.0;
+ }
+ long endTime = millis() + seconds * 1000;
+ while(millis() < endTime) _loop();
+}
+
+void setup() {
+ Serial.begin(9600);
+ attachInterrupt(Encoder_1.getIntNum(), isr_process_encoder1, RISING);
+ Encoder_1.setPulse(8);
+ Encoder_1.setRatio(46.67);
+ Encoder_1.setPosPid(1.8,0,1.2);
+ Encoder_1.setSpeedPid(0.18,0,0);
+ TCCR1A = _BV(WGM10);
+ TCCR1B = _BV(CS11) | _BV(WGM12);
+ TCCR2A = _BV(WGM21) | _BV(WGM20);
+ TCCR2B = _BV(CS21);
+ proportionalGain = 0.2;
+ setpoint = 25;
+ DerivationGain = 2.2;
+ IntegralGain = 0;
+ integral = 0;
+}
+
+void _loop() {
+ Encoder_1.loop();
+}
+
+void loop() {
+ error1 = ((setpoint - ultrasonic_7.distanceCm())+0.02);
+ delay(50);
+ error2 = ((setpoint - ultrasonic_7.distanceCm())+0.02);
+ derivative = (((error2 - error1)) / 0.05);
+
+ Encoder_1.move((((DerivationGain * derivative + proportionalGain * error2 + IntegralGain * integral)) - Encoder_1.getCurPos()),abs(300));
+ integral += error2 * 0.1;
+ Serial.print("integral ");
+ Serial.println(integral);
+ Serial.print("derivative ");
+ Serial.println(derivative);
+ Serial.print("error1: ");
+ Serial.println(error1);
+ Serial.print("error2: ");
+ Serial.println(error2);
+ _loop();
+}
